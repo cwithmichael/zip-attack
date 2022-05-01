@@ -3,8 +3,9 @@
    [clojure.java.io :as io]
    [clojure.string :as str]
    [clojure.core.match :refer [match]])
-  (:import [net.lingala.zip4j ZipFile]
-           [net.lingala.zip4j.exception ZipException])
+  (:import [net.lingala.zip4j.io.inputstream ZipInputStream]
+           [net.lingala.zip4j.exception ZipException]
+           [java.io FileInputStream])
   (:gen-class))
 
 (defn guess-file-type
@@ -25,16 +26,24 @@
     ["xml"] [0x3C 0x3F 0x78 0x6D 0x6C 0x20]
     :else nil))
 
+(defn find-file-in-zip
+  "Find the file entry in the zip"
+  [zip-file entry-name password]
+  (let [input-stream  (FileInputStream. zip-file)
+        zip-input-stream (ZipInputStream. input-stream password)]
+    #_{:clj-kondo/ignore [:missing-else-branch]}
+    (some
+     #(if (= (.getFileName %) entry-name) zip-input-stream)
+     (repeatedly #(.getNextEntry zip-input-stream)))))
+
 (defn check-password
   "Checks to see if the password is valid for a zip entry.
-   It does so by comparing the decrypted header to the expected header."
-  [zip-file-name entry-name expected-header password]
+  It does so by comparing the decrypted header to the expected header."
+  [zip-file entry-name expected-header password]
   (try
-    (let [zip-file  (ZipFile. zip-file-name (.toCharArray password))
-          file-header (.getFileHeader zip-file entry-name)
-          input-stream (.getInputStream zip-file file-header)
+    (let [entry-input-stream (find-file-in-zip zip-file entry-name (.toCharArray password))
           buffer (byte-array (count expected-header))]
-      (.read input-stream buffer)
+      (.read entry-input-stream buffer)
       (java.util.Arrays/equals (byte-array buffer) (byte-array expected-header)))
     (catch ZipException e
       (match [(.toString (.getType e))]
@@ -43,9 +52,9 @@
 
 (defn read-in-and-check-passwords
   "Read in passwords from stdin and check to see if one is valid."
-  [zip-file-name entry-name expected-header]
+  [zip-file entry-name expected-header]
   #_{:clj-kondo/ignore [:missing-else-branch]}
-  (some #(if (check-password zip-file-name entry-name expected-header %) %)
+  (some #(if (check-password zip-file entry-name expected-header %) %)
         (line-seq (java.io.BufferedReader. *in*))))
 
 (defn print-usage []
@@ -60,21 +69,22 @@
           expected-header (if (= (count args) 3)
                             (get-header (nth args 2))
                             (get-header (guess-file-type entry-name)))]
-      (if (.exists (io/file zip-file-name))
-        (if (nil? expected-header)
-          (do
-            (println "Unknown file extension")
-            (System/exit 1))
-          (do
-            (println "Now reading passwords...")
-            (try
-              (if-let [p (read-in-and-check-passwords zip-file-name entry-name expected-header)]
-                (println "Found it! ->" p)
-                (println "Password not found"))
-              (catch net.lingala.zip4j.exception.ZipException e
-                (println
-                 "Something went wrong trying to read the file from the zip: "
-                 (.toString (.getMessage e)))))))
+      (if (nil? expected-header)
         (do
-          (println "Zip file not found: " zip-file-name)
-          (System/exit 1))))))
+          (println "Unknown file extension")
+          (System/exit 1))
+        (let [zip-file (io/file zip-file-name)]
+          (if (.exists zip-file)
+            (do
+              (println "Now reading passwords...")
+              (try
+                (if-let [p (read-in-and-check-passwords zip-file entry-name expected-header)]
+                  (println "Found it! ->" p)
+                  (println "Password not found"))
+                (catch net.lingala.zip4j.exception.ZipException e
+                  (println
+                   "Something went wrong trying to read the file from the zip: "
+                   (.toString (.getMessage e))))))
+            (do
+              (println "Zip file not found: " zip-file-name)
+              (System/exit 1))))))))
