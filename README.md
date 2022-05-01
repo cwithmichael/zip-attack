@@ -1,4 +1,4 @@
-# BreakZip
+# Zip Attack
 
 ## Motivation
 
