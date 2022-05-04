@@ -8,13 +8,6 @@
            [java.io FileInputStream])
   (:gen-class))
 
-(defn guess-file-type
-  "Guess the file's type based on its extension."
-  [file-name]
-  (if (.contains file-name ".")
-    (subs file-name (inc (str/last-index-of file-name ".")))
-    nil))
-
 (defn get-header
   "Get the header based on the file extension."
   [ext]
@@ -25,6 +18,13 @@
     [(:or "zip" "apk" "jar")] [0x50 0x4B 0x03 0x04]
     ["xml"] [0x3C 0x3F 0x78 0x6D 0x6C 0x20]
     :else nil))
+
+(defn guess-file-type
+  "Guess the file's type based on its extension."
+  [file-name]
+  (if (and ((complement str/blank?) file-name) (str/includes? file-name "."))
+    (subs file-name (inc (str/last-index-of file-name ".")))
+    nil))
 
 (defn find-file-in-zip
   "Find the file entry in the zip"
