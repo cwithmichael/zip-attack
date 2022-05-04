@@ -6,3 +6,4 @@ target
 .cpcache/
 .calva/
 .nrepl-port
+.clj-kondo/
