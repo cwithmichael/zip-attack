@@ -64,27 +64,26 @@
 (defn -main [& args]
   (if (< (count args) 2)
     (print-usage)
-    (let [zip-file-name (first args)
-          entry-name (second args)
-          expected-header (if (= (count args) 3)
-                            (get-header (nth args 2))
-                            (get-header (guess-file-type entry-name)))]
-      (if (nil? expected-header)
-        (do
-          (println "Unknown file extension")
-          (System/exit 1))
-        (let [zip-file (io/file zip-file-name)]
-          (if (.exists zip-file)
-            (do
-              (println "Now reading passwords...")
-              (try
-                (if-let [p (read-in-and-check-passwords zip-file entry-name expected-header)]
-                  (println "Found it! ->" p)
-                  (println "Password not found"))
-                (catch net.lingala.zip4j.exception.ZipException e
-                  (println
-                   "Something went wrong trying to read the file from the zip: "
-                   (.toString (.getMessage e))))))
-            (do
-              (println "Zip file not found: " zip-file-name)
-              (System/exit 1))))))))
+    (if-let [expected-header (if (= (count args) 3)
+                               (get-header (nth args 2))
+                               (get-header (guess-file-type  (second args))))]
+      (let [zip-file-name (first args)
+            entry-name (second args)
+            zip-file (io/file zip-file-name)]
+        (if (.exists zip-file)
+          (do
+            (println "Now reading passwords...")
+            (try
+              (if-let [p (read-in-and-check-passwords zip-file entry-name expected-header)]
+                (println "Found it! ->" p)
+                (println "Password not found"))
+              (catch net.lingala.zip4j.exception.ZipException e
+                (println
+                 "Something went wrong trying to read the file from the zip: "
+                 (.toString (.getMessage e))))))
+          (do
+            (println "Zip file not found: " zip-file-name)
+            (System/exit 1))))
+      (do
+        (println "Unknown file extension")
+        (System/exit 1)))))
