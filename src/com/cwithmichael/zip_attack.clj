@@ -22,7 +22,7 @@
 (defn guess-file-type
   "Guess the file's type based on its extension."
   [file-name]
-  (if (and ((complement str/blank?) file-name) (str/includes? file-name "."))
+  (if (and (not-empty file-name) (str/includes? file-name "."))
     (subs file-name (inc (str/last-index-of file-name ".")))
     nil))
 
@@ -31,9 +31,8 @@
   [zip-file entry-name password]
   (let [input-stream  (FileInputStream. zip-file)
         zip-input-stream (ZipInputStream. input-stream password)]
-    #_{:clj-kondo/ignore [:missing-else-branch]}
     (some
-     #(if (= (.getFileName %) entry-name) zip-input-stream)
+     #(when (= (.getFileName %) entry-name) zip-input-stream)
      (repeatedly #(.getNextEntry zip-input-stream)))))
 
 (defn check-password
@@ -41,7 +40,7 @@
   It does so by comparing the decrypted header to the expected header."
   [zip-file entry-name expected-header password]
   (try
-    (let [entry-input-stream (find-file-in-zip zip-file entry-name (.toCharArray password))
+    (let [entry-input-stream (find-file-in-zip zip-file entry-name (char-array password))
           buffer (byte-array (count expected-header))]
       (.read entry-input-stream buffer)
       (java.util.Arrays/equals (byte-array buffer) (byte-array expected-header)))
@@ -53,8 +52,7 @@
 (defn read-in-and-check-passwords
   "Read in passwords from stdin and check to see if one is valid."
   [zip-file entry-name expected-header]
-  #_{:clj-kondo/ignore [:missing-else-branch]}
-  (some #(if (check-password zip-file entry-name expected-header %) %)
+  (some #(when (check-password zip-file entry-name expected-header %) %)
         (line-seq (java.io.BufferedReader. *in*))))
 
 (defn print-usage []
